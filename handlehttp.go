@@ -46,7 +46,7 @@ func formatProblems(problems map[string]string) string {
 	return msg
 }
 
-// HandleValid is a generic handler for all requests
+// HandleValid is a generic handler for http requests
 func HandleValid[in validator, out any](log logger, f targetFunc[in, out]) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Decode and validate request
