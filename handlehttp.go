@@ -17,7 +17,7 @@ type (
 		// the object is valid.
 		Valid(context.Context) (problems map[string]string)
 	}
-	logger interface {
+	Logger interface {
 		Errorf(format string, args ...interface{})
 		Infof(format string, args ...interface{})
 		Warnf(format string, args ...interface{})
@@ -47,7 +47,7 @@ func formatProblems(problems map[string]string) string {
 }
 
 // HandleValid is a generic handler for http requests
-func HandleValid[in validator, out any](log logger, f targetFunc[in, out]) http.Handler {
+func HandleValid[in validator, out any](log Logger, f targetFunc[in, out]) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Decode and validate request
 		in, problems, err := decodeValid[in](r)
@@ -78,7 +78,7 @@ func HandleValid[in validator, out any](log logger, f targetFunc[in, out]) http.
 	})
 }
 
-func respond(status int, w http.ResponseWriter, logger_ logger, res interface{}) {
+func respond(status int, w http.ResponseWriter, logger_ Logger, res interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
