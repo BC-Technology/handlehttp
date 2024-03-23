@@ -10,6 +10,22 @@ import (
 	"time"
 )
 
+// Run starts the HTTP server and listens for incoming requests on the specified host and port.
+// It gracefully shuts down the server when a termination signal is received or when the context is canceled.
+// The provided logger is used to log server events and errors.
+//
+// Parameters:
+//   - ctx: The context.Context to use for graceful shutdown.
+//   - logger: The Logger implementation for logging server events and errors.
+//   - srv: The http.Handler implementation to handle incoming requests.
+//   - host: The host address to listen on.
+//   - port: The port number to listen on.
+//
+// Example:
+//
+//	Run(ctx, logger, handler, "localhost", "8080")
+//
+// Note: The function blocks until the server is shut down.
 func Run(ctx context.Context, logger Logger, srv http.Handler, host, port string) {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()
