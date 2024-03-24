@@ -9,7 +9,7 @@ import (
 
 type (
 	// targetFunc is a generic function type that executes bussiness logic
-	targetFunc[in any, out any] func(context.Context, in) (out, error)
+	targetFunc[in any, out any] func(context.Context, in, ...interface{}) (out, error)
 	// validator is an object that can be validated.
 	validator interface {
 		// Valid checks the object and returns any
@@ -47,7 +47,7 @@ func formatProblems(problems map[string]string) string {
 }
 
 // HandleValid is a generic handler for http requests
-func HandleValid[in validator, out any](log Logger, f targetFunc[in, out]) http.Handler {
+func HandleValid[in validator, out any](log Logger, f targetFunc[in, out], args ...interface{}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Decode and validate request
 		in, problems, err := decodeValid[in](r)
@@ -67,7 +67,7 @@ func HandleValid[in validator, out any](log Logger, f targetFunc[in, out]) http.
 		}
 
 		// Call out to target function
-		out, err := f(r.Context(), in)
+		out, err := f(r.Context(), in, args...)
 		if err != nil {
 			respond(http.StatusBadRequest, w, log, map[string]string{"error": err.Error()})
 			return
