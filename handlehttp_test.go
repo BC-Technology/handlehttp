@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/Black-Capital-Ventures/handlehttp"
@@ -25,6 +26,21 @@ type (
 
 // Valid checks the object and returns any problems. If len(problems) == 0 then the object is valid.
 func (v MockValidator) Valid(ctx context.Context) map[string]string { return nil }
+
+// Decode decodes the query parameters from the request into the object. This overrides any values obtained from the body.
+func (v *MockValidator) Decode(ctx context.Context, r *http.Request) error {
+	params := r.URL.Query()
+	id := params.Get("id")
+
+	// parse the id
+	var err error
+	v.ID, err = strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("parse id: %w", err)
+	}
+
+	return nil
+}
 
 // Errorf logs an error message
 func (l *MockLogger) Errorf(format string, args ...interface{}) {}
@@ -48,7 +64,7 @@ func TestHandleValid(t *testing.T) {
 	expectedOutput := output{Message: expectedMessage, ID: expectedID}
 
 	// Create a mock target function
-	mockTargetFunc := func(ctx context.Context, in MockValidator, args ...interface{}) (out any, err error) {
+	mockTargetFunc := func(ctx context.Context, in *MockValidator, args ...interface{}) (out any, err error) {
 		// Return a mock output
 		return output{Message: in.Message, ID: in.ID}, nil
 	}
@@ -68,7 +84,7 @@ func TestHandleValid(t *testing.T) {
 	mockResponseWriter := httptest.NewRecorder()
 
 	// Call the HandleValid function
-	handler := handlehttp.HandleValid(mockLogger, mockTargetFunc)
+	handler := handlehttp.Handle(mockLogger, mockTargetFunc)
 	handler.ServeHTTP(mockResponseWriter, mockRequest)
 
 	// Check the response status code

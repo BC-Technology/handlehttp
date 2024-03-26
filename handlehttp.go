@@ -10,12 +10,15 @@ import (
 type (
 	// targetFunc is a generic function type that executes bussiness logic
 	targetFunc[in any, out any] func(context.Context, in, ...interface{}) (out, error)
-	// validator is an object that can be validated.
+	// validator is an object that can be validated and decoded.
 	validator interface {
 		// Valid checks the object and returns any
 		// problems. If len(problems) == 0 then
 		// the object is valid.
 		Valid(context.Context) (problems map[string]string)
+		// Decode decodes the query parameters from the request into the object.
+		// This overrides any values obtained from the body.
+		Decode(context.Context, *http.Request) error
 	}
 	Logger interface {
 		Errorf(format string, args ...interface{})
@@ -23,19 +26,6 @@ type (
 		Warnf(format string, args ...interface{})
 	}
 )
-
-func decodeValid[T validator](r *http.Request) (T, map[string]string, error) {
-	var v T
-	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
-		return v, nil, fmt.Errorf("decode json: %w", err)
-	}
-
-	if problems := v.Valid(r.Context()); len(problems) > 0 {
-		return v, problems, fmt.Errorf("invalid %T: %d problems", v, len(problems))
-	}
-
-	return v, nil, nil
-}
 
 func formatProblems(problems map[string]string) string {
 	msg := ""
@@ -46,36 +36,43 @@ func formatProblems(problems map[string]string) string {
 	return msg
 }
 
-// HandleValid is a generic handler for http requests
-func HandleValid[in validator, out any](log Logger, f targetFunc[in, out], args ...interface{}) http.Handler {
+// Handle is a generic handler for http requests
+func Handle[in validator, out any](log Logger, f targetFunc[in, out], args ...interface{}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Decode and validate request
-		in, problems, err := decodeValid[in](r)
-		if err != nil {
-			msg := ""
-			if len(problems) > 0 {
-				msg = fmt.Sprintf("failed to decode request: %v, problems: %s", err, formatProblems(problems))
-			} else {
-				msg = fmt.Sprintf("failed to decode request: %v", err)
-			}
+		// Decode body
+		var input in
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			badRequest(log, fmt.Sprintf("failed to decode body: %v", err), w)
+			return
+		}
 
-			log.Warnf("request validation: %s", msg)
+		// Decode query parameters
+		if err := input.Decode(r.Context(), r); err != nil {
+			badRequest(log, fmt.Sprintf("failed to decode query: %v", err), w)
+			return
+		}
 
-			respond(http.StatusBadRequest, w, log, map[string]string{"error": msg})
-
+		// Validate request
+		if problems := input.Valid(r.Context()); len(problems) > 0 {
+			badRequest(log, fmt.Sprintf("failed to validate request: %s", formatProblems(problems)), w)
 			return
 		}
 
 		// Call out to target function
-		out, err := f(r.Context(), in, args...)
+		out, err := f(r.Context(), input, args...)
 		if err != nil {
-			respond(http.StatusBadRequest, w, log, map[string]string{"error": err.Error()})
+			badRequest(log, fmt.Sprintf("failed to execute target function: %v", err), w)
 			return
 		}
 
 		// Format and write response
 		respond(http.StatusOK, w, log, out)
 	})
+}
+
+func badRequest(log Logger, msg string, w http.ResponseWriter) {
+	log.Warnf(msg)
+	respond(http.StatusBadRequest, w, log, map[string]string{"error": msg})
 }
 
 func respond(status int, w http.ResponseWriter, logger_ Logger, res interface{}) {
