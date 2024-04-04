@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/Black-Capital-Ventures/handlehttp"
+	"github.com/BC-Technology/handlehttp"
 	"github.com/stretchr/testify/require"
 )
 

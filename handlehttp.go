@@ -42,26 +42,26 @@ func Handle[in validator, out any](log Logger, f targetFunc[in, out], args ...in
 		// Decode body
 		var input in
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-			badRequest(log, fmt.Sprintf("failed to decode body: %v", err), w)
+			badRequest(log, fmt.Sprintf("handler failed to decode body: %v", err), w)
 			return
 		}
 
 		// Decode query parameters
 		if err := input.Decode(r.Context(), r); err != nil {
-			badRequest(log, fmt.Sprintf("failed to decode query: %v", err), w)
+			badRequest(log, fmt.Sprintf("handler failed to decode query: %v", err), w)
 			return
 		}
 
 		// Validate request
 		if problems := input.Valid(r.Context()); len(problems) > 0 {
-			badRequest(log, fmt.Sprintf("failed to validate request: %s", formatProblems(problems)), w)
+			badRequest(log, fmt.Sprintf("handler failed to validate request: %s", formatProblems(problems)), w)
 			return
 		}
 
 		// Call out to target function
 		out, err := f(r.Context(), input, args...)
 		if err != nil {
-			badRequest(log, fmt.Sprintf("failed to execute target function: %v", err), w)
+			badRequest(log, fmt.Sprintf("handler failed to execute target function: %v", err), w)
 			return
 		}
 

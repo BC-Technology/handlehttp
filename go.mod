@@ -1,4 +1,4 @@
-module github.com/Black-Capital-Ventures/handlehttp
+module github.com/BC-Technology/handlehttp
 
 go 1.22.0
 
