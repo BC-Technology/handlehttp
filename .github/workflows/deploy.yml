@@ -1,0 +1,129 @@
+name: Build, Test and Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - '*'
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  IMAGE: ${{ github.event.repository.name }}
+  TAG: ${{ github.sha }}
+  ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+  
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    if: always()
+    outputs:
+      start_time: ${{ steps.start.outputs.timestamp }}
+
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Set start timestamp
+        id: start
+        run: |
+          printf 'timestamp=%(%s)T\n' >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    needs: [build, prepare]
+    if: ${{ !startsWith(github.event.head_commit.message, '!!') }}
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t gcr.io/$PROJECT_ID/$IMAGE:$TAG .
+          docker save gcr.io/$PROJECT_ID/$IMAGE:$TAG > image.tar  
+
+      - name: Run Unit Tests
+        run: |
+          docker run --network="host" gcr.io/$PROJECT_ID/$IMAGE:$TAG go test ./... -v
+
+  cleanup:
+    name: Cleanup
+    needs: [prepare, build, test, deploy-prod, deploy-staging]
+    if: always()
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Get repo size (Run cloc and capture the languages)
+        run: |
+          echo "Running cloc to get lines 3 through 5..."
+          readarray -t LINES <<< "$(docker run --rm -v $GITHUB_WORKSPACE:/tmp -w /tmp aldanial/cloc . | awk 'NR >= 3 && NR <= 7')"
+          echo "cloc_header_row_1=${LINES[0]}" >> $GITHUB_ENV
+          echo "cloc_header_row_2=${LINES[1]}" >> $GITHUB_ENV
+          echo "cloc_language_1=${LINES[2]}" >> $GITHUB_ENV
+          echo "cloc_language_2=${LINES[3]}" >> $GITHUB_ENV
+          echo "cloc_language_3=${LINES[4]}" >> $GITHUB_ENV
+        
+      - name: Clean up artifacts
+        if: ${{!startsWith(github.event.head_commit.message, '!!')}}
+        uses: Black-Capital-Ventures/gh-actions-delete-artifact@v1
+        with:
+          name: docker-image-${{ env.TAG }}
+
+      - name: Fetch job log
+        id: fetch_job_status
+        run: |
+          json_string=$(echo "${response}" | python -c '
+          # time to fucking shine
+          import requests, datetime, json, time
+          headers = {"Accept": "application/vnd.github+json", "Authorization": "Bearer ${{ secrets.GITHUB_TOKEN }}", "X-GitHub-Api-Version": "2022-11-28"}
+          res = requests.get("https://api.github.com/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs", headers=headers)
+          body = res.json()
+
+          translate_time_string = lambda x: datetime.datetime.strptime(x, r"%Y-%m-%dT%H:%M:%SZ")
+
+          print(json.dumps([dict(
+              name=job["name"], 
+              status=job["status"],
+              conclusion=job["conclusion"] if not job["status"] == "in_progress" and not job["conclusion"] is None else "success", 
+              duration=(translate_time_string(job["completed_at"])-translate_time_string(job["started_at"])).seconds if not job["status"] == "in_progress" and not None in (job["started_at"], job["completed_at"]) else round(time.time()-translate_time_string(job["started_at"]).timestamp())
+            ) for job in body["jobs"]]))
+          ')
+
+          echo $json_string
+          
+          echo "JOB_LOG=$json_string" >> $GITHUB_ENV
+  
+      - name: Send Slack notification 
+        run: |  
+          echo ${{ needs.prepare.outputs.start_time }} | python -c '
+          import sys, time, requests, os, json
+          workflow_begin_timestamp = int(sys.stdin.read())
+          workflow_duration_seconds = round(time.time()-workflow_begin_timestamp)
+
+          convert_seconds = lambda seconds : "{}h {}m {}s".format(seconds // 3600, seconds % 3600 // 60, seconds % 60) if seconds >= 3600 else "{}m {}s".format(seconds % 3600 // 60, seconds % 60)  if seconds >= 60 else "{}s".format(seconds % 60)
+
+          job_log = json.loads(os.getenv("JOB_LOG"))
+
+          header_emoji = ":bangbang:" if any([job["conclusion"] == "failure" for job in job_log]) else ":tada:"
+          map_conclusions = {"skipped": ":fast_forward:", "success": ":white_check_mark:", "failure": ":x:"}
+
+          jobs_msg = "\n".join(["{} _{}_  -  {}".format(map_conclusions[job["conclusion"]], job["name"], convert_seconds(job["duration"])) for job in job_log])
+          workflow_msg = "Workflow took {}".format(convert_seconds(workflow_duration_seconds))
+          head_msg = "{} Github Action workflow finished on {}/{} {}".format(header_emoji, "*${{ github.event.repository.name }}*", "_${{ github.ref_name }}_", header_emoji)
+          
+
+          repository_size_msg = "Most used languages in this repository: \n${{ env.cloc_header_row_1 }}\n${{ env.cloc_header_row_2 }}\n${{ env.cloc_language_1 }}\n${{ env.cloc_language_2 }}\n${{ env.cloc_language_3 }}"
+
+          r=requests.post(
+            "${{ secrets.SLACK_WEBHOOK_URL }}",
+            json={"text": "\n{}\n\n${{ github.actor }}: _{}_\n\n*Job log:*\n{}\n\n{}".format(head_msg, """${{ github.event.head_commit.message }}""", jobs_msg, repository_size_msg, workflow_msg)}
+          )
+          '
