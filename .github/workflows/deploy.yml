@@ -49,7 +49,7 @@ jobs:
 
   cleanup:
     name: Cleanup
-    needs: [prepare, build, test, deploy-prod, deploy-staging]
+    needs: [prepare, test]
     if: always()
 
     runs-on: ubuntu-latest
