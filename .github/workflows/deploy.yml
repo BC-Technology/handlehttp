@@ -117,4 +117,10 @@ jobs:
             "${{ secrets.SLACK_WEBHOOK_URL }}",
             json={"text": "\n{}\n\n${{ github.actor }}: _{}_\n\n*Job log:*\n{}\n\n{}".format(head_msg, """${{ github.event.head_commit.message }}""", jobs_msg, repository_size_msg, workflow_msg)}
           )
+
+          if r.status_code != 200:
+            print("Failed to send slack notification")
+            print(r.text)
+          else:
+            print("Slack notification sent successfully")
           '
