@@ -9,7 +9,7 @@ import (
 
 type (
 	// targetFunc is a generic function type that executes bussiness logic
-	targetFunc[in validator, out any] func(context.Context, in, validator) (out, error)
+	targetFunc[in validator, out any] func(context.Context, in, ...interface{}) (out, error)
 	// validator is an object that can be validated and decoded.
 	validator interface {
 		// Valid checks the object and returns any
