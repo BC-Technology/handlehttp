@@ -31,7 +31,7 @@ jobs:
   test:
     name: Run tests
     runs-on: ubuntu-latest
-    needs: [build, prepare]
+    needs: [prepare]
     if: ${{ !startsWith(github.event.head_commit.message, '!!') }}
 
     steps:
