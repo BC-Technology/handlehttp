@@ -38,14 +38,14 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: |
-          docker build -t gcr.io/$PROJECT_ID/$IMAGE:$TAG .
-          docker save gcr.io/$PROJECT_ID/$IMAGE:$TAG > image.tar  
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.22' # Specify the Go version
 
-      - name: Run Unit Tests
-        run: |
-          docker run --network="host" gcr.io/$PROJECT_ID/$IMAGE:$TAG go test ./... -v
+      - name: Run tests
+        run: go test ./... -v
+
 
   cleanup:
     name: Cleanup
