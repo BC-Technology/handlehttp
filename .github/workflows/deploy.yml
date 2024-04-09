@@ -6,7 +6,6 @@ on:
       - '*'
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   IMAGE: ${{ github.event.repository.name }}
   TAG: ${{ github.sha }}
   ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
@@ -39,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: '1.22' # Specify the Go version
 
@@ -69,12 +68,6 @@ jobs:
           echo "cloc_language_2=${LINES[3]}" >> $GITHUB_ENV
           echo "cloc_language_3=${LINES[4]}" >> $GITHUB_ENV
         
-      - name: Clean up artifacts
-        if: ${{!startsWith(github.event.head_commit.message, '!!')}}
-        uses: Black-Capital-Ventures/gh-actions-delete-artifact@v1
-        with:
-          name: docker-image-${{ env.TAG }}
-
       - name: Fetch job log
         id: fetch_job_status
         run: |
