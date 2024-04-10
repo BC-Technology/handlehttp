@@ -41,7 +41,7 @@ func Handle[in validator, out any](log Logger, f targetFunc[in, out], args ...in
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Decode body
 		var input in
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil && err.Error() != "EOF" /* ignore empty body */ {
 			badRequest(log, fmt.Sprintf("handler failed to decode body: %v", err), w)
 			return
 		}
