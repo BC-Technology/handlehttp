@@ -61,7 +61,7 @@ func Handle[in validator, out any](log Logger, f targetFunc[in, out], args ...in
 		// Call out to target function
 		out, err := f(r.Context(), input, args...)
 		if err != nil {
-			badRequest(log, fmt.Sprintf("handler failed to execute target function: %v", err), w)
+			badRequest(log, err.Error(), w)
 			return
 		}
 
