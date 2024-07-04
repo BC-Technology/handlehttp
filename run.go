@@ -39,6 +39,7 @@ func Run(ctx context.Context, logger Logger, srv http.Handler, host, port string
 
 	go func() {
 		logger.Infof("Listening on %s", httpServer.Addr)
+
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Errorf("Error listening and serving: %s", err)
 		}
@@ -63,5 +64,4 @@ func Run(ctx context.Context, logger Logger, srv http.Handler, host, port string
 	}()
 
 	wg.Wait()
-
 }

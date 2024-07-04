@@ -35,6 +35,7 @@ func (v *MockValidator) Decode(ctx context.Context, r *http.Request) error {
 	// parse the id
 	var err error
 	v.ID, err = strconv.Atoi(id)
+
 	if err != nil {
 		return fmt.Errorf("parse id: %w", err)
 	}
@@ -54,6 +55,7 @@ func (l *MockLogger) Warnf(format string, args ...interface{}) {}
 func TestHandleValid(t *testing.T) {
 	// Create a mock logger
 	mockLogger := &MockLogger{}
+
 	type output struct {
 		Message string `json:"message"`
 		ID      int    `json:"id"`
