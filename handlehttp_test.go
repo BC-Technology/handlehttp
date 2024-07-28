@@ -66,7 +66,7 @@ func TestHandleValid(t *testing.T) {
 	expectedOutput := output{Message: expectedMessage, ID: expectedID}
 
 	// Create a mock target function
-	mockTargetFunc := func(ctx context.Context, in *MockValidator, args ...interface{}) (out any, err error) {
+	mockTargetFunc := func(ctx context.Context, in *MockValidator) (out any, err error) {
 		// Return a mock output
 		return output{Message: in.Message, ID: in.ID}, nil
 	}
