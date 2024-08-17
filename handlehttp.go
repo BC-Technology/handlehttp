@@ -9,7 +9,8 @@ import (
 
 type (
 	// TargetFunc is a generic function type that executes bussiness logic
-	TargetFunc[in validator, out any] func(context.Context, in) (out, error)
+	TargetFunc[in validator, out any] func(context.Context, in) (out out, err error)
+	VoidTargetFunc[out any]           func(context.Context) (out out, err error)
 	// validator is an object that can be validated and decoded.
 	validator interface {
 		// Valid checks the object and returns any
@@ -18,7 +19,7 @@ type (
 		Valid(context.Context) (problems map[string]string)
 		// Decode decodes the query parameters from the request into the object.
 		// This overrides any values obtained from the body.
-		Decode(context.Context, *http.Request) error
+		Decode(context.Context, *http.Request) (err error)
 	}
 	Logger interface {
 		Errorf(format string, args ...interface{})
@@ -36,8 +37,22 @@ func formatProblems(problems map[string]string) string {
 	return msg
 }
 
-// Handle is a generic handler for http requests
-func Handle[in validator, out any](log Logger, f TargetFunc[in, out]) http.Handler {
+func HandleVoid[out any](log Logger, f VoidTargetFunc[out]) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Call out to target function
+		out, err := f(r.Context())
+		if err != nil {
+			badRequest(log, err.Error(), w)
+			return
+		}
+
+		// Format and write response
+		respond(http.StatusOK, w, log, out)
+	})
+}
+
+// HandleValid is a generic handler for http requests
+func HandleValid[in validator, out any](log Logger, f TargetFunc[in, out]) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Decode body
 		var input in

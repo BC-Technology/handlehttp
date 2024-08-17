@@ -86,7 +86,7 @@ func TestHandleValid(t *testing.T) {
 	mockResponseWriter := httptest.NewRecorder()
 
 	// Call the HandleValid function
-	handler := handlehttp.Handle(mockLogger, mockTargetFunc)
+	handler := handlehttp.HandleValid(mockLogger, mockTargetFunc)
 	handler.ServeHTTP(mockResponseWriter, mockRequest)
 
 	// Check the response status code
