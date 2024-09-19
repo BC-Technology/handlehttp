@@ -26,7 +26,27 @@ type (
 		Infof(format string, args ...interface{})
 		Warnf(format string, args ...interface{})
 	}
+	statusError interface {
+		error
+		Status() int
+	}
+	err struct {
+		msg    string
+		status int
+	}
 )
+
+func Error(msg string, status int) statusError {
+	return err{msg: msg, status: status}
+}
+
+func (e err) Error() string {
+	return e.msg
+}
+
+func (e err) Status() int {
+	return e.status
+}
 
 func formatProblems(problems map[string]string) string {
 	msg := ""
@@ -42,7 +62,7 @@ func HandleVoid[out any](log Logger, f VoidTargetFunc[out]) http.Handler {
 		// Call out to target function
 		out, err := f(r.Context())
 		if err != nil {
-			badRequest(log, err.Error(), w)
+			badRequest(log, err.Error(), w, http.StatusBadRequest)
 			return
 		}
 
@@ -58,32 +78,37 @@ func HandleValid[in validator, out any](log Logger, f TargetFunc[in, out]) http.
 		var input in
 
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil && err.Error() != "EOF" /* ignore empty body */ {
-			badRequest(log, fmt.Sprintf("handler failed to decode body: %v", err), w)
+			badRequest(log, fmt.Sprintf("handler failed to decode body: %v", err), w, http.StatusBadRequest)
 			return
 		} else if err != nil && err.Error() == "EOF" { //initialize empty body if no body exists
 			byt := []byte(`{}`)
 			if err := json.Unmarshal(byt, &input); err != nil {
-				badRequest(log, fmt.Sprintf("failed to encode body: %v", err), w)
+				badRequest(log, fmt.Sprintf("failed to encode body: %v", err), w, http.StatusBadRequest)
 				return
 			}
 		}
 
 		// Decode query parameters
 		if err := input.Decode(r.Context(), r); err != nil {
-			badRequest(log, fmt.Sprintf("handler failed to decode query: %v", err), w)
+			badRequest(log, fmt.Sprintf("handler failed to decode query: %v", err), w, http.StatusBadRequest)
 			return
 		}
 
 		// Validate request
 		if problems := input.Valid(r.Context()); len(problems) > 0 {
-			badRequest(log, fmt.Sprintf("handler failed to validate request: %s", formatProblems(problems)), w)
+			badRequest(log, fmt.Sprintf("handler failed to validate request: %s", formatProblems(problems)), w, http.StatusBadRequest)
 			return
 		}
 
 		// Call out to target function
 		out, err := f(r.Context(), input)
+		if httpERR, ok := err.(statusError); ok {
+			badRequest(log, err.Error(), w, httpERR.Status())
+			return
+		}
+
 		if err != nil {
-			badRequest(log, err.Error(), w)
+			badRequest(log, err.Error(), w, http.StatusBadRequest)
 			return
 		}
 
@@ -92,9 +117,9 @@ func HandleValid[in validator, out any](log Logger, f TargetFunc[in, out]) http.
 	})
 }
 
-func badRequest(log Logger, msg string, w http.ResponseWriter) {
+func badRequest(log Logger, msg string, w http.ResponseWriter, status int) {
 	log.Warnf(msg)
-	respond(http.StatusBadRequest, w, log, map[string]string{"error": msg})
+	respond(status, w, log, map[string]string{"error": msg})
 }
 
 func respond(status int, w http.ResponseWriter, logger_ Logger, res interface{}) {
